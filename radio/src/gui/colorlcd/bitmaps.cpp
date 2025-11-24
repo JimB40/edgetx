@@ -69,13 +69,10 @@ MaskBitmap* _decompressed_mask(const uint8_t* lz4_compressed)
   return raw;
 }
 
-static const uint8_t mask_menu_favs[] = {
-#include "mask_menu_favs.lbm"
-};
-
-static const uint8_t mask_menu_model[] = {
-#include "mask_menu_model.lbm"
 // gfx for quick menu
+static const uint8_t mask_menu_favs[] = {
+#include "mask_icon_menu_favs.lbm"
+};
 
 static const uint8_t mask_menu_manage_models[] = {
 #include "mask_icon_menu_manage_models.lbm"  //TODO: someone may want to make proper icon
@@ -409,14 +406,10 @@ struct _BuiltinIcon {
 static const _BuiltinIcon _builtinIcons[EDGETX_ICONS_COUNT] = {
     BI(ICON_EDGETX, mask_edgetx),
     BI(ICON_QM_FAVORITES, mask_menu_favs),
-    BI(ICON_RADIO, mask_menu_radio),
-    BI(ICON_RADIO_SETUP, mask_radio_setup),
-    BI(ICON_RADIO_SD_MANAGER, mask_radio_sd_browser),
-    BI(ICON_RADIO_TOOLS, mask_radio_tools),
-    // BI(ICON_RADIO, mask_menu_radio_setup),
-    // BI(ICON_RADIO_SETUP, mask_radio_general),
-    // BI(ICON_RADIO_SD_MANAGER, mask_tools_storage),
-    // BI(ICON_RADIO_TOOLS, mask_menu_tools),
+    BI(ICON_RADIO, mask_menu_radio_setup),
+    BI(ICON_RADIO_SETUP, mask_radio_general),
+    BI(ICON_RADIO_SD_MANAGER, mask_tools_storage),
+    BI(ICON_RADIO_TOOLS, mask_menu_tools),
     BI(ICON_RADIO_GLOBAL_FUNCTIONS, mask_radio_global_functions),
     BI(ICON_RADIO_TRAINER, mask_radio_trainer),
     BI(ICON_RADIO_HARDWARE, mask_radio_hardware),
