@@ -156,3 +156,35 @@ else()
 endif()
 
 add_subdirectory(${RADIO_SRC_DIR})
+
+if(NATIVE_BUILD)
+  get_property(EDGETX_SIMULATOR_TARGET GLOBAL PROPERTY EDGETX_SIMULATOR_TARGET)
+  get_property(EDGETX_COMPANION_APP_TARGET GLOBAL PROPERTY EDGETX_COMPANION_APP_TARGET)
+  get_property(EDGETX_SIMULATOR_APP_TARGET GLOBAL PROPERTY EDGETX_SIMULATOR_APP_TARGET)
+
+  if(EDGETX_SIMULATOR_TARGET AND TARGET ${EDGETX_SIMULATOR_TARGET})
+    if(EDGETX_SIMULATOR_APP_TARGET AND TARGET ${EDGETX_SIMULATOR_APP_TARGET})
+      set(simulator_bundle_stamp "${CMAKE_BINARY_DIR}/simulator_bundle.stamp")
+      add_custom_command(OUTPUT ${simulator_bundle_stamp}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:${EDGETX_SIMULATOR_TARGET}>
+                $<TARGET_FILE_DIR:${EDGETX_SIMULATOR_APP_TARGET}>
+        COMMAND ${CMAKE_COMMAND} -E touch ${simulator_bundle_stamp}
+        DEPENDS ${EDGETX_SIMULATOR_TARGET} ${EDGETX_SIMULATOR_APP_TARGET}
+      )
+      add_custom_target(simulator_bundle DEPENDS ${simulator_bundle_stamp})
+    endif()
+
+    if(EDGETX_COMPANION_APP_TARGET AND TARGET ${EDGETX_COMPANION_APP_TARGET})
+      set(companion_bundle_stamp "${CMAKE_BINARY_DIR}/companion_bundle.stamp")
+      add_custom_command(OUTPUT ${companion_bundle_stamp}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:${EDGETX_SIMULATOR_TARGET}>
+                $<TARGET_FILE_DIR:${EDGETX_COMPANION_APP_TARGET}>
+        COMMAND ${CMAKE_COMMAND} -E touch ${companion_bundle_stamp}
+        DEPENDS ${EDGETX_SIMULATOR_TARGET} ${EDGETX_COMPANION_APP_TARGET}
+      )
+      add_custom_target(companion_bundle DEPENDS ${companion_bundle_stamp})
+    endif()
+  endif()
+endif()

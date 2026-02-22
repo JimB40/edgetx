@@ -47,6 +47,7 @@ PXX1AntennaSettings::PXX1AntennaSettings(Window* parent,
       line, rect_t{}, STR_ANTENNA_MODES, ANTENNA_MODE_INTERNAL,
       ANTENNA_MODE_EXTERNAL, GET_DEFAULT(md->pxx.antennaMode),
       [=](int32_t antenna) -> void {
+#if defined(EXTERNAL_ANTENNA) && defined(INTERNAL_MODULE_PXX1)
         if (!isExternalAntennaEnabled() && (antenna == ANTENNA_MODE_EXTERNAL)) {
           if (confirmationDialog(STR_ANTENNACONFIRM1, STR_ANTENNACONFIRM2)) {
             md->pxx.antennaMode = antenna;
@@ -57,6 +58,10 @@ PXX1AntennaSettings::PXX1AntennaSettings(Window* parent,
           SET_DIRTY();
           checkExternalAntenna();
         }
+#else
+        md->pxx.antennaMode = antenna;
+        SET_DIRTY();
+#endif
       });
 
   antennaChoice->setAvailableHandler(

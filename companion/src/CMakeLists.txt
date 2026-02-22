@@ -163,7 +163,7 @@ add_custom_command(OUTPUT ${HWDEFS_QRC}
       -t ${HWDEFS_TMPL}
       -p ${HWDEFS_PHDR}
       -o ${HWDEFS_QRC}
-  DEPENDS ${HWDEFS_TMPL}
+  DEPENDS ${HWDEFS_TMPL} hardware_defs
 )
 
 set(common_RESOURCES
@@ -255,6 +255,8 @@ add_executable(${COMPANION_NAME} MACOSX_BUNDLE ${WIN_EXECUTABLE_TYPE}
   ${icon_RC}
 )
 
+set_property(GLOBAL PROPERTY EDGETX_COMPANION_APP_TARGET ${COMPANION_NAME})
+
 target_link_libraries(${COMPANION_NAME} PRIVATE
   ${CPN_COMMON_LIB}
   ${SDL2_LIBRARIES}
@@ -278,6 +280,8 @@ add_executable(${SIMULATOR_NAME} MACOSX_BUNDLE ${WIN_EXECUTABLE_TYPE}
   ${simu_SRCS}
   ${icon_RC}
 )
+
+set_property(GLOBAL PROPERTY EDGETX_SIMULATOR_APP_TARGET ${SIMULATOR_NAME})
 
 target_link_libraries(${SIMULATOR_NAME} PRIVATE
   ${CPN_COMMON_LIB}
@@ -642,4 +646,3 @@ else()
 endif()
 
 include(CPack)
-
