@@ -11,12 +11,10 @@ TARGET_FILES = [
     "radio/src/targets/horus/CMakeLists.txt",
     "radio/src/targets/taranis/CMakeLists.txt",
     "radio/src/targets/pl18/CMakeLists.txt",
-    "radio/src/targets/tx16smk3/CMakeLists.txt",
     "radio/src/targets/tx15/CMakeLists.txt",
 ]
 
 FILE_PCB_HINTS = {
-    "radio/src/targets/tx16smk3/CMakeLists.txt": "TX16SMK3",
     "radio/src/targets/pl18/CMakeLists.txt": "PL18",
     "radio/src/targets/tx15/CMakeLists.txt": "TX15",
 }
@@ -139,6 +137,20 @@ def display_label(display_info):
     return " ".join(parts)
 
 
+def display_parts(display_info):
+    if not display_info:
+        return "", ""
+    gui = display_info.get("gui")
+    bitmaps = display_info.get("bitmaps")
+    display_type = ""
+    if gui == "colorlcd":
+        display_type = "Color"
+    elif bitmaps in ("128x64", "212x64"):
+        display_type = "BW"
+    resolution = bitmaps if bitmaps and re.match(r"^\d+x\d+$", bitmaps) else ""
+    return display_type, resolution
+
+
 def build_entries(pcb_map, display_map):
     entries = []
     skip_combos = {
@@ -152,7 +164,7 @@ def build_entries(pcb_map, display_map):
         ("X10", "TX16S"): "Radiomaster TX16S",
         ("X10", "T16"): "Jumper T16",
         ("X10", "T15"): "Jumper T15",
-        ("X10", "T18"): "Radiomaster TX18S",
+        ("X10", "T18"): "Jumper T18",
         ("X10", "F16"): "FATFISH F16",
         ("X10", "V16"): "HelloRadioSky V16",
         ("X10", "EXPRESS"): "FrSky X10 Express",
@@ -191,7 +203,6 @@ def build_entries(pcb_map, display_map):
         ("X9LITES", None): "FrSky X9 Lite S",
         ("XLITE", None): "FrSky X-Lite",
         ("XLITES", None): "FrSky X-Lite S",
-        ("TX16SMK3", None): "Radiomaster TX16S MKIII",
         ("TX15", None): "Radiomaster TX15",
         ("PL18", None): "FlySky PL18",
         ("PL18", "PL18U"): "FlySky PL18",
@@ -206,18 +217,20 @@ def build_entries(pcb_map, display_map):
                 if (pcb, rev) in skip_combos:
                     continue
                 pretty = labels.get((pcb, rev))
-                disp = display_label(display_overrides.get((pcb, rev)) or display_map.get((pcb, rev)) or display_overrides.get((pcb, None)) or display_map.get((pcb, None)))
+                disp_info = display_overrides.get((pcb, rev)) or display_map.get((pcb, rev)) or display_overrides.get((pcb, None)) or display_map.get((pcb, None))
+                display_type, resolution = display_parts(disp_info)
                 base = pretty if pretty else f"{pcb}/{rev}"
-                label = f"{base} ({disp})" if disp else base
+                label = base
                 if base in ("XLITES/MT12", "XLITE/MT12"):
                     continue
-                entries.append((label, pcb, rev))
+                entries.append((label, pcb, rev, display_type, resolution))
         else:
             pretty = labels.get((pcb, None))
-            disp = display_label(display_overrides.get((pcb, None)) or display_map.get((pcb, None)))
+            disp_info = display_overrides.get((pcb, None)) or display_map.get((pcb, None))
+            display_type, resolution = display_parts(disp_info)
             base = pretty if pretty else f"{pcb}"
-            label = f"{base} ({disp})" if disp else base
-            entries.append((label, pcb, None))
+            label = base
+            entries.append((label, pcb, None, display_type, resolution))
     return entries
 
 
@@ -225,6 +238,7 @@ def main():
     parser = argparse.ArgumentParser(description="List available radio build options (PCB/PCBREV) parsed from CMake.")
     parser.add_argument("--select", type=int, help="Select an entry by number and print cmake flags.")
     parser.add_argument("--cmake", action="store_true", help="Print full cmake configure command.")
+    parser.add_argument("--export-tsv", help="Write entries to a TSV file: index<TAB>label<TAB>pcb<TAB>pcbrev.")
     args = parser.parse_args()
 
     pcb_map, display_map = parse_targets()
@@ -235,12 +249,22 @@ def main():
     entries = build_entries(pcb_map, display_map)
     entries.sort(key=lambda e: e[0].lower())
 
+    if args.export_tsv:
+        out_path = args.export_tsv
+        out_dir = os.path.dirname(os.path.abspath(out_path))
+        if out_dir and not os.path.exists(out_dir):
+            os.makedirs(out_dir, exist_ok=True)
+        with open(out_path, "w", encoding="utf-8") as f:
+            for i, (label, pcb, rev, display_type, resolution) in enumerate(entries, 1):
+                f.write(f"{i}\t{label}\t{pcb}\t{rev or ''}\t{display_type}\t{resolution}\n")
+        return 0
+
     if args.select is not None:
         idx = args.select - 1
         if idx < 0 or idx >= len(entries):
             print(f"Invalid selection: {args.select}")
             return 1
-        _, pcb, rev = entries[idx]
+        _, pcb, rev, _, _ = entries[idx]
         if rev:
             flags = f"-DPCB={pcb} -DPCBREV={rev}"
         else:
@@ -252,11 +276,11 @@ def main():
         return 0
 
     print("Available radios:")
-    for i, (label, _, _) in enumerate(entries, 1):
+    for i, (label, _, _, _, _) in enumerate(entries, 1):
         print(f"{i:3d}. {label}")
     print()
     print("Select one:")
-    print("  tools/list-radios.py --select <number> --cmake")
+    print("  tools/radio-targets.py --select <number> --cmake")
     return 0
 
 

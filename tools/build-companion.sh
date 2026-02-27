@@ -2,17 +2,23 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/build-common.sh" 
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SRCDIR=$1
 OUTDIR=$2
 
 if [[ -z ${SRCDIR} ]]; then
-  SRCDIR="$(pwd)"
+  SRCDIR="${REPO_ROOT}"
 fi
 
 if [[ -z ${OUTDIR} ]]; then
-  OUTDIR="$(pwd)/output"
+  OUTDIR="${REPO_ROOT}/output"
 fi
+
+# Normalize paths so behavior is identical regardless of launch directory.
+SRCDIR="$(cd "$SRCDIR" && pwd)"
+mkdir -p "${OUTDIR}"
+OUTDIR="$(cd "${OUTDIR}" && pwd)"
 
 # Determine parallel jobs
 determine_max_jobs
@@ -51,7 +57,8 @@ if [[ -z ${EDGETX_VERSION_SUFFIX} ]]; then
   fi
 fi
 
-rm -rf build && mkdir build && cd build
+BUILDDIR="${SRCDIR}/build"
+rm -rf "${BUILDDIR}" && mkdir "${BUILDDIR}" && cd "${BUILDDIR}"
 
 # Function to output error logs (works in both GitHub Actions and terminal)
 output_error_log() {
