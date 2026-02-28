@@ -11,10 +11,12 @@ TARGET_FILES = [
     "radio/src/targets/horus/CMakeLists.txt",
     "radio/src/targets/taranis/CMakeLists.txt",
     "radio/src/targets/pl18/CMakeLists.txt",
+    "radio/src/targets/tx16smk3/CMakeLists.txt",
     "radio/src/targets/tx15/CMakeLists.txt",
 ]
 
 FILE_PCB_HINTS = {
+    "radio/src/targets/tx16smk3/CMakeLists.txt": "TX16SMK3",
     "radio/src/targets/pl18/CMakeLists.txt": "PL18",
     "radio/src/targets/tx15/CMakeLists.txt": "TX15",
 }
@@ -203,6 +205,7 @@ def build_entries(pcb_map, display_map):
         ("X9LITES", None): "FrSky X9 Lite S",
         ("XLITE", None): "FrSky X-Lite",
         ("XLITES", None): "FrSky X-Lite S",
+        ("TX16SMK3", None): "Radiomaster TX16S MK3",
         ("TX15", None): "Radiomaster TX15",
         ("PL18", None): "FlySky PL18",
         ("PL18", "PL18U"): "FlySky PL18",
@@ -231,6 +234,7 @@ def build_entries(pcb_map, display_map):
             base = pretty if pretty else f"{pcb}"
             label = base
             entries.append((label, pcb, None, display_type, resolution))
+
     return entries
 
 
