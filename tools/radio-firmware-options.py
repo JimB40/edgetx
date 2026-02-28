@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 import argparse
+import difflib
 import os
 import re
+import sys
 from collections import OrderedDict
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RADIO_TARGETS_TSV = os.path.join(ROOT, "tools", "radio-targets.tsv")
-OUT_DEFAULT = os.path.join(ROOT, "tools", "radio-firmware-options.tsv")
+CURATED_TSV = os.path.join(ROOT, "tools", "radio-firmware-options.tsv")
+OUT_DEFAULT = os.path.join(ROOT, "tools", "radio-firmware-options.generated.tsv")
 
 OPTION_RE = re.compile(
     r'^\s*option\s*\(\s*([A-Za-z0-9_]+)\s+"([^"]*)"\s+([A-Za-z0-9_]+)\s*\)'
@@ -170,27 +173,78 @@ def build_rows():
     return rows
 
 
-def write_rows(rows, out_path):
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+def rows_to_tsv(rows):
     sorted_items = sorted(rows.items(), key=lambda kv: kv[0])
-    with open(out_path, "w", encoding="utf-8") as f:
-        for option_name, row in sorted_items:
-            label = row["label"]
-            filters = row["filters"]
-            has_global = row["has_global"]
-            filt = "" if has_global else ",".join(sorted(filters))
-            f.write(f"{label}\t{option_name}\t{filt}\n")
+    lines = []
+    for option_name, row in sorted_items:
+        label = row["label"]
+        filters = row["filters"]
+        has_global = row["has_global"]
+        filt = "" if has_global else ",".join(sorted(filters))
+        lines.append(f"{label}\t{option_name}\t{filt}\n")
+    return "".join(lines)
+
+
+def write_tsv(text, out_path, force=False):
+    out_abs = os.path.abspath(out_path)
+    if os.path.exists(out_abs) and not force:
+        print(
+            f"Refusing to overwrite existing file: {out_abs}\n"
+            f"Re-run with --force to overwrite.",
+            file=sys.stderr,
+        )
+        return 1
+    os.makedirs(os.path.dirname(out_abs), exist_ok=True)
+    with open(out_abs, "w", encoding="utf-8") as f:
+        f.write(text)
+    print(f"Wrote {out_abs}")
+    return 0
+
+
+def check_tsv(path, generated_text):
+    check_abs = os.path.abspath(path)
+    if not os.path.exists(check_abs):
+        print(f"Check target does not exist: {check_abs}", file=sys.stderr)
+        return 1
+    with open(check_abs, "r", encoding="utf-8") as f:
+        current = f.read()
+    if current == generated_text:
+        print(f"OK: {check_abs} is up to date.")
+        return 0
+    print(f"Mismatch: {check_abs} differs from generated output.", file=sys.stderr)
+    diff = difflib.unified_diff(
+        current.splitlines(keepends=True),
+        generated_text.splitlines(keepends=True),
+        fromfile=check_abs,
+        tofile="generated",
+        n=2,
+    )
+    for line in diff:
+        sys.stderr.write(line)
+    return 1
 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate tools/radio-firmware-options.tsv from CMake option() definitions.")
-    parser.add_argument("--out", default=OUT_DEFAULT, help="Output TSV path")
+    parser.add_argument("--out", default=OUT_DEFAULT, help="Output TSV path (default: tools/radio-firmware-options.generated.tsv)")
+    parser.add_argument("--force", action="store_true", help="Allow overwriting an existing output TSV.")
+    parser.add_argument(
+        "--check",
+        nargs="?",
+        const=CURATED_TSV,
+        help="Compare generated output with an existing TSV (default: tools/radio-firmware-options.tsv).",
+    )
     args = parser.parse_args()
 
     rows = build_rows()
-    write_rows(rows, os.path.abspath(args.out))
-    print(f"Wrote {len(rows)} options to {args.out}")
+    generated_tsv = rows_to_tsv(rows)
+    if args.check:
+        return check_tsv(args.check, generated_tsv)
+    result = write_tsv(generated_tsv, args.out, force=args.force)
+    if result == 0:
+        print(f"Generated {len(rows)} options")
+    return result
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

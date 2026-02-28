@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import argparse
+import difflib
 import os
 import re
 import sys
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CURATED_TSV = os.path.join(ROOT, "tools", "radio-targets.tsv")
+GENERATED_TSV = os.path.join(ROOT, "tools", "radio-targets.generated.tsv")
 
 TARGET_FILES = [
     "radio/src/targets/horus/CMakeLists.txt",
@@ -238,11 +241,71 @@ def build_entries(pcb_map, display_map):
     return entries
 
 
+def entries_to_tsv(entries):
+    lines = []
+    for i, (label, pcb, rev, display_type, resolution) in enumerate(entries, 1):
+        lines.append(f"{i}\t{label}\t{pcb}\t{rev or ''}\t{display_type}\t{resolution}\n")
+    return "".join(lines)
+
+
+def write_tsv(out_path, text, force=False):
+    out_abs = os.path.abspath(out_path)
+    if os.path.exists(out_abs) and not force:
+        print(
+            f"Refusing to overwrite existing file: {out_abs}\n"
+            f"Re-run with --force to overwrite.",
+            file=sys.stderr,
+        )
+        return 1
+    out_dir = os.path.dirname(out_abs)
+    if out_dir and not os.path.exists(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+    with open(out_abs, "w", encoding="utf-8") as f:
+        f.write(text)
+    print(f"Wrote {out_abs}")
+    return 0
+
+
+def check_tsv(path, generated_text):
+    check_abs = os.path.abspath(path)
+    if not os.path.exists(check_abs):
+        print(f"Check target does not exist: {check_abs}", file=sys.stderr)
+        return 1
+    with open(check_abs, "r", encoding="utf-8") as f:
+        current = f.read()
+    if current == generated_text:
+        print(f"OK: {check_abs} is up to date.")
+        return 0
+    print(f"Mismatch: {check_abs} differs from generated output.", file=sys.stderr)
+    diff = difflib.unified_diff(
+        current.splitlines(keepends=True),
+        generated_text.splitlines(keepends=True),
+        fromfile=check_abs,
+        tofile="generated",
+        n=2,
+    )
+    for line in diff:
+        sys.stderr.write(line)
+    return 1
+
+
 def main():
     parser = argparse.ArgumentParser(description="List available radio build options (PCB/PCBREV) parsed from CMake.")
     parser.add_argument("--select", type=int, help="Select an entry by number and print cmake flags.")
     parser.add_argument("--cmake", action="store_true", help="Print full cmake configure command.")
-    parser.add_argument("--export-tsv", help="Write entries to a TSV file: index<TAB>label<TAB>pcb<TAB>pcbrev.")
+    parser.add_argument(
+        "--export-tsv",
+        nargs="?",
+        const=GENERATED_TSV,
+        help="Write entries to a TSV file (default: tools/radio-targets.generated.tsv).",
+    )
+    parser.add_argument("--force", action="store_true", help="Allow overwriting an existing output TSV.")
+    parser.add_argument(
+        "--check",
+        nargs="?",
+        const=CURATED_TSV,
+        help="Compare generated output with an existing TSV (default: tools/radio-targets.tsv).",
+    )
     args = parser.parse_args()
 
     pcb_map, display_map = parse_targets()
@@ -252,16 +315,13 @@ def main():
 
     entries = build_entries(pcb_map, display_map)
     entries.sort(key=lambda e: e[0].lower())
+    generated_tsv = entries_to_tsv(entries)
+
+    if args.check:
+        return check_tsv(args.check, generated_tsv)
 
     if args.export_tsv:
-        out_path = args.export_tsv
-        out_dir = os.path.dirname(os.path.abspath(out_path))
-        if out_dir and not os.path.exists(out_dir):
-            os.makedirs(out_dir, exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            for i, (label, pcb, rev, display_type, resolution) in enumerate(entries, 1):
-                f.write(f"{i}\t{label}\t{pcb}\t{rev or ''}\t{display_type}\t{resolution}\n")
-        return 0
+        return write_tsv(args.export_tsv, generated_tsv, force=args.force)
 
     if args.select is not None:
         idx = args.select - 1
