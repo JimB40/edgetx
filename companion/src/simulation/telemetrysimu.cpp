@@ -30,9 +30,46 @@
 #include "telemetryprovidercrossfire.h"
 
 #include <QRegularExpression>
+#include <QPushButton>
+#include <QFrame>
+#include <initializer_list>
 #include <stdint.h>
 
 #include <QDebug>
+
+namespace {
+bool invokeFirstAvailableSlot(QWidget * widget, const std::initializer_list<const char *> & slotNames)
+{
+  if (!widget)
+    return false;
+
+  for (const char * slotName : slotNames) {
+    if (QMetaObject::invokeMethod(widget, slotName, Qt::DirectConnection))
+      return true;
+  }
+  return false;
+}
+
+void hideLegacyValueButtons(QWidget * provider)
+{
+  if (!provider)
+    return;
+
+  const auto buttons = provider->findChildren<QPushButton *>();
+  for (QPushButton * button : buttons) {
+    const QString name = button->objectName();
+    if (name == "button_saveTelemetryValues" ||
+        name == "button_loadTelemetryValues" ||
+        name == "saveTelemetryvalues" ||
+        name == "loadTelemetryvalues") {
+      button->hide();
+    }
+  }
+
+  if (auto * oldLine = provider->findChild<QFrame *>("line"))
+    oldLine->hide();
+}
+}
 
 TelemetrySimulator::TelemetrySimulator(QWidget * parent, SimulatorInterface * simulator):
   QWidget(parent),
@@ -70,6 +107,13 @@ TelemetrySimulator::TelemetrySimulator(QWidget * parent, SimulatorInterface * si
 
   connect(ui->internalTelemetrySelector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &TelemetrySimulator::onInternalTelemetrySelectorChanged);
   connect(ui->externalTelemetrySelector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &TelemetrySimulator::onExternalTelemetrySelectorChanged);
+  connect(ui->internalLoadValuesButton, &QPushButton::clicked, this, &TelemetrySimulator::onInternalLoadValuesClicked);
+  connect(ui->internalSaveValuesButton, &QPushButton::clicked, this, &TelemetrySimulator::onInternalSaveValuesClicked);
+  ui->internalGroupHeaderLabel->setStyleSheet("margin-left: 9px;");
+  ui->internalValueButtonsLayout->setSpacing(10);
+  ui->internalValueButtonsLayout->setContentsMargins(0, 0, 0, 0);
+  ui->internalValueButtonsLayout->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+  ui->verticalLayout_3->setAlignment(ui->internalValueButtonsLayout, Qt::AlignLeft);
 
   connect(this, &TelemetrySimulator::internalTelemetryDataChanged, simulator, &SimulatorInterface::sendInternalModuleTelemetry);
   connect(this, &TelemetrySimulator::externalTelemetryDataChanged, simulator, &SimulatorInterface::sendExternalModuleTelemetry);
@@ -77,6 +121,8 @@ TelemetrySimulator::TelemetrySimulator(QWidget * parent, SimulatorInterface * si
   connect(simulator,           &SimulatorInterface::started,              this,      &TelemetrySimulator::onSimulatorStarted);
   connect(simulator,           &SimulatorInterface::stopped,              this,      &TelemetrySimulator::onSimulatorStopped);
   connect(&g.currentProfile(), &Profile::telemSimEnabledChanged,          this,      &TelemetrySimulator::onSimulateToggled);
+
+  updateInternalProviderButtonsVisibility();
 }
 
 TelemetrySimulator::~TelemetrySimulator()
@@ -107,6 +153,12 @@ void TelemetrySimulator::showEvent(QShowEvent * event)
 {
   if (g.currentProfile().telemSimEnabled())
     startTelemetry();
+}
+
+void TelemetrySimulator::resizeEvent(QResizeEvent * event)
+{
+  QWidget::resizeEvent(event);
+  updateInternalProviderButtonsVisibility();
 }
 
 void TelemetrySimulator::startTelemetry()
@@ -206,6 +258,8 @@ void TelemetrySimulator::onInternalTelemetrySelectorChanged(int selectedIndex)
     delete internalProvider;
   }
   internalProvider = newTelemetryProviderFromDropdownChoice(selectedIndex, ui->internalScrollArea, false);
+  hideLegacyValueButtons(dynamic_cast<QWidget *>(internalProvider));
+  updateInternalProviderButtonsVisibility();
 }
 
 void TelemetrySimulator::onExternalTelemetrySelectorChanged(int selectedIndex)
@@ -214,6 +268,42 @@ void TelemetrySimulator::onExternalTelemetrySelectorChanged(int selectedIndex)
     delete externalProvider;
   }
   externalProvider = newTelemetryProviderFromDropdownChoice(selectedIndex, ui->externalScrollArea, true);
+  hideLegacyValueButtons(dynamic_cast<QWidget *>(externalProvider));
+}
+
+void TelemetrySimulator::updateInternalProviderButtonsVisibility()
+{
+  const int headerWidth = ui->internalTelemetryLabel->width() +
+                          ui->horizontalLayout_3->spacing() +
+                          ui->internalTelemetrySelector->width();
+  const int pairWidth = qMax(160, headerWidth - ui->internalValueButtonsLayout->spacing());
+  const int buttonWidth = pairWidth / 2;
+  ui->internalLoadValuesButton->setFixedWidth(buttonWidth);
+  ui->internalSaveValuesButton->setFixedWidth(buttonWidth);
+
+  const int providerIndex = ui->internalTelemetrySelector->currentIndex();
+  const bool hasProvider = (providerIndex > 0 && internalProvider != nullptr);
+  ui->internalLoadValuesButton->setVisible(hasProvider);
+  ui->internalSaveValuesButton->setVisible(hasProvider);
+  const bool showRfHeader = (providerIndex == 1 && hasProvider);
+  ui->internalGroupDivider->setVisible(showRfHeader);
+  ui->internalGroupHeaderLabel->setVisible(showRfHeader);
+}
+
+void TelemetrySimulator::onInternalLoadValuesClicked()
+{
+  invokeFirstAvailableSlot(
+    dynamic_cast<QWidget *>(internalProvider),
+    {"on_button_loadTelemetryValues_clicked", "on_loadTelemetryvalues_clicked"}
+  );
+}
+
+void TelemetrySimulator::onInternalSaveValuesClicked()
+{
+  invokeFirstAvailableSlot(
+    dynamic_cast<QWidget *>(internalProvider),
+    {"on_button_saveTelemetryValues_clicked", "on_saveTelemetryvalues_clicked"}
+  );
 }
 
 void TelemetrySimulator::onInternalTelemetryProviderDataChanged(const quint8 protocol, const QByteArray data)

@@ -21,6 +21,22 @@
 
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QApplication>
+#include <QAbstractSpinBox>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QGridLayout>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QSizePolicy>
+#include <QStyleFactory>
+#include <QStyledItemDelegate>
+#include <QTimer>
+#include <QToolButton>
 
 #include "appdata.h"
 #include "telemetryprovidercrossfire.h"
@@ -29,11 +45,395 @@
 
 template<class t> t LIMIT(t mi, t x, t ma) { return std::min(std::max(mi, x), ma); }
 
+namespace {
+class RightAlignedListDelegate : public QStyledItemDelegate
+{
+ public:
+  explicit RightAlignedListDelegate(int rightPadding, QObject * parent = nullptr):
+    QStyledItemDelegate(parent),
+    m_rightPadding(rightPadding)
+  {
+  }
+
+  void paint(QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index) const override
+  {
+    QStyleOptionViewItem opt(option);
+    initStyleOption(&opt, index);
+    const QWidget * widget = option.widget;
+    QStyle * style = widget ? widget->style() : QApplication::style();
+
+    opt.text.clear();
+    style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, widget);
+
+    const QString text = index.data(Qt::DisplayRole).toString();
+    QRect textRect = option.rect.adjusted(0, 0, -m_rightPadding, 0);
+    const QColor textColor = (option.state & QStyle::State_Selected)
+      ? option.palette.color(QPalette::HighlightedText)
+      : option.palette.color(QPalette::Text);
+    painter->save();
+    painter->setPen(textColor);
+    painter->drawText(textRect, Qt::AlignRight | Qt::AlignVCenter, text);
+    painter->restore();
+  }
+
+ private:
+  int m_rightPadding;
+};
+
+class TpwrPopupList : public QListWidget
+{
+ public:
+  explicit TpwrPopupList(QWidget * parent = nullptr):
+    QListWidget(parent)
+  {
+  }
+
+ protected:
+  void focusOutEvent(QFocusEvent * event) override
+  {
+    QListWidget::focusOutEvent(event);
+    hide();
+  }
+
+  void keyPressEvent(QKeyEvent * event) override
+  {
+    if (event->key() == Qt::Key_Escape) {
+      hide();
+      return;
+    }
+    QListWidget::keyPressEvent(event);
+  }
+
+  void showEvent(QShowEvent * event) override
+  {
+    QListWidget::showEvent(event);
+    qApp->installEventFilter(this);
+  }
+
+  void hideEvent(QHideEvent * event) override
+  {
+    qApp->removeEventFilter(this);
+    QListWidget::hideEvent(event);
+  }
+
+  bool eventFilter(QObject * watched, QEvent * event) override
+  {
+    if (event->type() == QEvent::MouseButtonPress && isVisible()) {
+      auto * me = static_cast<QMouseEvent *>(event);
+      const QPoint gp = me->globalPosition().toPoint();
+      if (!frameGeometry().contains(gp))
+        hide();
+    }
+    return QListWidget::eventFilter(watched, event);
+  }
+};
+
+int tpwrIndexFromText(const QString & text)
+{
+  QString digits;
+  for (const QChar ch : text) {
+    if (ch.isDigit())
+      digits.append(ch);
+  }
+  if (digits.isEmpty())
+    return -1;
+
+  static const QStringList tpwrValues = {"0", "10", "25", "50", "100", "250", "500", "1000", "2000"};
+  return tpwrValues.indexOf(digits);
+}
+
+void setTpwrFromAnyText(QComboBox * combo, const QString & text)
+{
+  if (!combo)
+    return;
+
+  const int idx = tpwrIndexFromText(text);
+  if (idx >= 0)
+    combo->setCurrentIndex(idx);
+}
+
+void installLargeStepButtons(QAbstractSpinBox * spin)
+{
+  if (spin->inherits("QDateTimeEdit"))
+    return;
+
+  const int spinFrame = 1;
+  const int buttonGap = 3;
+  const int buttonSize = qMax(14, spin->height() - 8);
+  const int buttonAreaWidth = (buttonSize * 2) + buttonGap;
+
+  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+  spin->setStyleSheet(
+    QString("QAbstractSpinBox { padding-left: 7px; padding-right: %1px; }"
+            "QAbstractSpinBox QLineEdit {"
+            "  padding-left: 7px; padding-right: 10px;"
+            "  border: 1px solid #d9d9d9; border-radius: 8px;"
+            "  background: palette(base); color: #111111;"
+            "  selection-background-color: #0a84ff; selection-color: #ffffff;"
+            "}"
+            "QAbstractSpinBox QLineEdit:focus {"
+            "  background: #0a84ff; color: #ffffff; border-color: #0a84ff;"
+            "  selection-background-color: #066bd4; selection-color: #ffffff;"
+            "}")
+      .arg(buttonAreaWidth + spinFrame + 10));
+
+  auto * downButton = new QToolButton(spin);
+  downButton->setObjectName("stepDownButton");
+  downButton->setText(QStringLiteral("▼"));
+  downButton->setAutoRepeat(true);
+  downButton->setAutoRepeatDelay(250);
+  downButton->setAutoRepeatInterval(60);
+  downButton->setFocusPolicy(Qt::NoFocus);
+
+  auto * upButton = new QToolButton(spin);
+  upButton->setObjectName("stepUpButton");
+  upButton->setText(QStringLiteral("▲"));
+  upButton->setAutoRepeat(true);
+  upButton->setAutoRepeatDelay(250);
+  upButton->setAutoRepeatInterval(60);
+  upButton->setFocusPolicy(Qt::NoFocus);
+
+  const QString buttonStyle =
+    "QToolButton { border: 0; border-radius: 0; margin: 0px; padding: 0px; background: #e4e4e4; color: #111111; font-size: 13px; }"
+    "QToolButton#stepDownButton { border: 1px solid #b6b6b6; }"
+    "QToolButton#stepUpButton { border: 1px solid #b6b6b6; }"
+    "QToolButton:pressed { background: #d2d2d2; color: #000000; }";
+  downButton->setStyleSheet(buttonStyle);
+  upButton->setStyleSheet(buttonStyle);
+
+  QObject::connect(downButton, &QToolButton::clicked, spin, &QAbstractSpinBox::stepDown);
+  QObject::connect(upButton, &QToolButton::clicked, spin, &QAbstractSpinBox::stepUp);
+
+  const int h = spin->height();
+  const int w = spin->width();
+  const int x = w - buttonAreaWidth - spinFrame;
+  const int y = (h - buttonSize) / 2;
+  downButton->setGeometry(x, y, buttonSize, buttonSize);
+  upButton->setGeometry(x + buttonSize + buttonGap, y, buttonSize, buttonSize);
+}
+
+void tuneTelemetryInputWidgets(QWidget * root)
+{
+  const int fieldWidth = 120;
+
+  auto * grid = qobject_cast<QGridLayout *>(root->layout());
+  if (grid) {
+    grid->setHorizontalSpacing(0);
+    grid->setColumnMinimumWidth(1, fieldWidth);
+    grid->setColumnStretch(1, 0);
+    grid->setColumnStretch(2, 0);
+  }
+
+  const auto spinBoxes = root->findChildren<QAbstractSpinBox *>();
+  for (QAbstractSpinBox * spin : spinBoxes) {
+    spin->setFixedWidth(fieldWidth);
+    spin->setFixedHeight(24);
+    spin->setSizePolicy(QSizePolicy::Fixed, spin->sizePolicy().verticalPolicy());
+    spin->setAccelerated(true);
+    spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    installLargeStepButtons(spin);
+    if (grid)
+      grid->setAlignment(spin, Qt::AlignLeft | Qt::AlignVCenter);
+  }
+
+  const auto lineEdits = root->findChildren<QLineEdit *>();
+  for (QLineEdit * edit : lineEdits) {
+    if (qobject_cast<QAbstractSpinBox *>(edit->parentWidget()))
+      continue;
+    edit->setFixedWidth(fieldWidth);
+    edit->setFixedHeight(24);
+    edit->setSizePolicy(QSizePolicy::Fixed, edit->sizePolicy().verticalPolicy());
+    edit->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    edit->setStyleSheet("QLineEdit:focus { background: #0a84ff; color: #ffffff; border-color: #0a84ff; selection-background-color: #066bd4; selection-color: #ffffff; }");
+    if (grid)
+      grid->setAlignment(edit, Qt::AlignLeft | Qt::AlignVCenter);
+  }
+
+  const auto comboBoxes = root->findChildren<QComboBox *>();
+  for (QComboBox * combo : comboBoxes) {
+    combo->setFixedWidth(fieldWidth);
+    combo->setFixedHeight(24);
+    combo->setSizePolicy(QSizePolicy::Fixed, combo->sizePolicy().verticalPolicy());
+    if (grid)
+      grid->setAlignment(combo, Qt::AlignLeft | Qt::AlignVCenter);
+  }
+
+  const auto labels = root->findChildren<QLabel *>();
+  for (QLabel * label : labels) {
+    const QString txt = label->text().trimmed();
+    const bool looksLikeUnit = label->objectName().contains("_unit") ||
+                               txt == "dB" || txt == "%" || txt == "mw" || txt == "mW" ||
+                               txt == "dBm" || txt == "V" || txt == "A" || txt == "mAh" ||
+                               txt == "km/h" || txt == "kmh" || txt == "Degrees" || txt == "Radians" ||
+                               txt == "m/s" || txt == "m" || txt == "kts" || txt == "rpm" ||
+                               txt == "ml" || txt == "g" || txt == "°C";
+    if (!looksLikeUnit)
+      continue;
+    label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    label->setStyleSheet("padding-left: 0px; margin-left: 0px;");
+    if (grid)
+      grid->setAlignment(label, Qt::AlignLeft | Qt::AlignVCenter);
+  }
+
+  const auto checkBoxes = root->findChildren<QCheckBox *>();
+  for (QCheckBox * cb : checkBoxes) {
+    cb->setStyleSheet(
+      "QCheckBox { font-weight: 600; spacing: 5px; margin-top: 3px; margin-bottom: 3px; }"
+    );
+    if (!grid)
+      continue;
+    int row = 0, col = 0, rowSpan = 1, colSpan = 1;
+    const int idx = grid->indexOf(cb);
+    if (idx < 0)
+      continue;
+    grid->getItemPosition(idx, &row, &col, &rowSpan, &colSpan);
+    if (col != 0) {
+      grid->removeWidget(cb);
+      grid->addWidget(cb, row, 0, rowSpan, 2, Qt::AlignLeft | Qt::AlignVCenter);
+    } else {
+      grid->setAlignment(cb, Qt::AlignLeft | Qt::AlignVCenter);
+    }
+  }
+}
+}
+
 TelemetryProviderCrossfire::TelemetryProviderCrossfire(QWidget * parent):
   QWidget(parent),
   ui(new Ui::TelemetryProviderCrossfire)
 {
   ui->setupUi(this);
+  constexpr int kTpwrFieldWidth = 100;
+  tuneTelemetryInputWidgets(this);
+
+  // Keep TPWR combo aligned with numeric fields (same left/right edges and vertical centering).
+  ui->input_tpwr->setFixedSize(kTpwrFieldWidth, ui->input_1rss->height());
+  ui->label_tpwr_unit->setText("mW");
+  ui->input_tpwr->clear();
+  ui->input_tpwr->addItem("0");
+  ui->input_tpwr->addItem("10");
+  ui->input_tpwr->addItem("25");
+  ui->input_tpwr->addItem("50");
+  ui->input_tpwr->addItem("100");
+  ui->input_tpwr->addItem("250");
+  ui->input_tpwr->addItem("500");
+  ui->input_tpwr->addItem("1000");
+  ui->input_tpwr->addItem("2000");
+  ui->input_tpwr->setCurrentText("25");
+  if (auto * grid = qobject_cast<QGridLayout *>(layout())) {
+    int row = 0, col = 0, rowSpan = 1, colSpan = 1;
+    const int idx = grid->indexOf(ui->input_tpwr);
+    if (idx >= 0) {
+      grid->getItemPosition(idx, &row, &col, &rowSpan, &colSpan);
+
+      QWidget * tpwrField = new QWidget(this);
+      tpwrField->setObjectName("tpwrField");
+      tpwrField->setFixedSize(kTpwrFieldWidth, ui->input_1rss->height());
+
+      const int tpwrButtonSize = qMax(14, tpwrField->height() - 8);
+      const int tpwrButtonRightGap = 7;
+      const int tpwrButtonX = tpwrField->width() - tpwrButtonRightGap - tpwrButtonSize;
+      const int tpwrButtonY = (tpwrField->height() - tpwrButtonSize) / 2;
+      const int tpwrTextRightPadding = (tpwrField->width() - tpwrButtonX) + 2;
+
+      QLineEdit * tpwrDisplay = new QLineEdit(tpwrField);
+      tpwrDisplay->setObjectName("tpwrDisplay");
+      tpwrDisplay->setReadOnly(true);
+      tpwrDisplay->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+      tpwrDisplay->setFrame(false);
+      tpwrDisplay->setText(ui->input_tpwr->currentText());
+      tpwrDisplay->setGeometry(0, 0, tpwrField->width(), tpwrField->height());
+      tpwrDisplay->setStyleSheet(
+        QString("QLineEdit { border: 1px solid #d9d9d9; border-radius: 8px; background: palette(base); color: #111111; padding-left: 6px; padding-right: %1px; }"
+                "QLineEdit:focus { border-color: #0a84ff; background: #0a84ff; color: #ffffff; }")
+          .arg(tpwrTextRightPadding)
+      );
+
+      QToolButton * tpwrDropDownButton = new QToolButton(tpwrField);
+      tpwrDropDownButton->setObjectName("tpwrDropDownButton");
+      tpwrDropDownButton->setText(QStringLiteral("▼"));
+      tpwrDropDownButton->setFocusPolicy(Qt::NoFocus);
+      tpwrDropDownButton->setGeometry(tpwrButtonX, tpwrButtonY, tpwrButtonSize, tpwrButtonSize);
+      tpwrDropDownButton->setStyleSheet(
+        "QToolButton { border: 1px solid #b6b6b6; border-radius: 0px; margin: 0px; padding: 0px; background: #e4e4e4; color: #111111; font-size: 13px; }"
+        "QToolButton:pressed { background: #d2d2d2; color: #000000; }"
+      );
+
+      TpwrPopupList * tpwrPopup = new TpwrPopupList(this);
+      tpwrPopup->setObjectName("tpwrPopup");
+      tpwrPopup->setWindowFlag(Qt::Popup, true);
+      tpwrPopup->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+      tpwrPopup->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+      tpwrPopup->setSelectionMode(QAbstractItemView::SingleSelection);
+      tpwrPopup->setItemDelegate(new RightAlignedListDelegate(10, tpwrPopup));
+      tpwrPopup->setStyleSheet(
+        "QListWidget { border: 1px solid #b6b6b6; background: palette(base); }"
+      );
+
+      for (int i = 0; i < ui->input_tpwr->count(); ++i) {
+        auto * item = new QListWidgetItem(ui->input_tpwr->itemText(i), tpwrPopup);
+        item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        item->setData(Qt::UserRole, i);
+      }
+
+      const auto syncTpwrDisplay = [tpwrDisplay, this](int index) {
+        if (index >= 0)
+          tpwrDisplay->setText(ui->input_tpwr->itemText(index));
+      };
+      syncTpwrDisplay(ui->input_tpwr->currentIndex());
+      connect(ui->input_tpwr, QOverload<int>::of(&QComboBox::currentIndexChanged), this, syncTpwrDisplay);
+
+      connect(tpwrPopup, &QListWidget::itemClicked, this, [tpwrPopup, this](QListWidgetItem * item) {
+        if (!item)
+          return;
+        ui->input_tpwr->setCurrentIndex(item->data(Qt::UserRole).toInt());
+        tpwrPopup->hide();
+      });
+
+      connect(tpwrDropDownButton, &QToolButton::clicked, this, [tpwrPopup, tpwrDropDownButton, tpwrField, this]() {
+        const int currentIdx = ui->input_tpwr->currentIndex();
+        if (currentIdx >= 0)
+          tpwrPopup->setCurrentRow(currentIdx);
+
+        int rowH = tpwrPopup->sizeHintForRow(0);
+        if (rowH < 1)
+          rowH = tpwrPopup->fontMetrics().height() + 8;
+        const int popupHeight = qMax(1, rowH) * tpwrPopup->count() + 2;
+        int maxTextWidth = 0;
+        for (int i = 0; i < tpwrPopup->count(); ++i)
+          maxTextWidth = qMax(maxTextWidth, tpwrPopup->fontMetrics().horizontalAdvance(tpwrPopup->item(i)->text()));
+        const int popupWidth = qMax(78, maxTextWidth + 24);
+
+        tpwrPopup->setFixedSize(popupWidth, popupHeight);
+        const QPoint buttonTopLeft = tpwrDropDownButton->mapToGlobal(QPoint(0, 0));
+        const QPoint fieldBottomLeft = tpwrField->mapToGlobal(QPoint(0, tpwrField->height()));
+        const int popupX = buttonTopLeft.x() + tpwrDropDownButton->width() - popupWidth;
+        const int popupY = fieldBottomLeft.y() + 2;
+        const QPoint popupPos(popupX, popupY);
+        tpwrPopup->move(popupPos);
+        tpwrPopup->show();
+        tpwrPopup->raise();
+        tpwrPopup->setFocus();
+
+        // On first show, macOS/Qt may adjust popup geometry after painting.
+        // Re-apply desired coordinates in the next event loop cycle.
+        QTimer::singleShot(0, tpwrPopup, [tpwrPopup, popupPos]() {
+          if (!tpwrPopup->isVisible())
+            return;
+          tpwrPopup->move(popupPos);
+          tpwrPopup->raise();
+        });
+      });
+
+      grid->removeWidget(ui->input_tpwr);
+      ui->input_tpwr->hide();
+      grid->addWidget(tpwrField, row, col, rowSpan, colSpan, Qt::AlignLeft | Qt::AlignVCenter);
+    }
+  }
+  if (auto * grid = qobject_cast<QGridLayout *>(layout())) {
+    grid->setAlignment(ui->input_tpwr, Qt::AlignLeft | Qt::AlignVCenter);
+    grid->setAlignment(ui->label_tpwr, Qt::AlignLeft | Qt::AlignVCenter);
+    grid->setAlignment(ui->label_tpwr_unit, Qt::AlignLeft | Qt::AlignVCenter);
+  }
 
   // Set default values from UI definition into GPS
   gps.setLatLon(ui->input_gps->text());
@@ -50,6 +450,80 @@ TelemetryProviderCrossfire::TelemetryProviderCrossfire(QWidget * parent):
 
   connect(&gps, &SimulatedGPS::positionChanged,      ui->input_gps, &QLineEdit::setText);
   connect(&gps, &SimulatedGPS::courseDegreesChanged, ui->input_hdg, QOverload<double>::of(&QDoubleSpinBox::setValue));
+
+  auto * grid = qobject_cast<QGridLayout *>(layout());
+  const auto bindGroup = [this](QCheckBox * toggle, const std::initializer_list<QWidget *> & widgets) {
+    const QList<QWidget *> groupWidgets(widgets.begin(), widgets.end());
+    const auto updateVisibility = [groupWidgets](bool on) {
+      for (QWidget * w : groupWidgets) {
+        if (w)
+          w->setVisible(on);
+      }
+    };
+    connect(toggle, &QCheckBox::toggled, this, updateVisibility);
+    updateVisibility(toggle->isChecked());
+  };
+
+  bindGroup(ui->enabled_battery, {
+    ui->label_rxbt, ui->input_rxbt, ui->label_rxbt_unit,
+    ui->label_curr, ui->input_curr, ui->label_curr_unit,
+    ui->label_capa, ui->input_capa, ui->label_capa_unit,
+    ui->label_batpercent, ui->input_batpercent, ui->label_batpercent_unit
+  });
+  bindGroup(ui->enabled_gps, {
+    ui->label_gps_sim, ui->button_gpsRunStop,
+    ui->label_gps, ui->input_gps, ui->label_gps_unit,
+    ui->label_gspd, ui->input_gspd, ui->label_gspd_unit,
+    ui->label_hdg, ui->input_hdg, ui->label_hdg_unit,
+    ui->label_sats, ui->input_sats
+  });
+  bindGroup(ui->enabled_attitude, {
+    ui->label_ptch, ui->input_ptch, ui->label_ptch_unit,
+    ui->label_roll, ui->input_roll, ui->label_roll_unit,
+    ui->label_yaw, ui->input_yaw, ui->label_yaw_unit
+  });
+  bindGroup(ui->enabled_flightcontroller, {
+    ui->label_fm, ui->input_fm
+  });
+  bindGroup(ui->enabled_barometer, {
+    ui->label_vspd, ui->input_vspd, ui->label_vspd_unit,
+    ui->label_alt, ui->input_alt, ui->label_alt_unit
+  });
+
+  const auto relayoutLowerGroups = [grid, this](bool attitudeOn) {
+    if (!grid)
+      return;
+
+    const int flightRow = attitudeOn ? 29 : 25;
+    const int fmRow = flightRow + 1;
+    const int barometerRow = fmRow + 1;
+    const int vspdRow = barometerRow + 1;
+    const int altRow = vspdRow + 1;
+
+    grid->removeWidget(ui->enabled_flightcontroller);
+    grid->removeWidget(ui->label_fm);
+    grid->removeWidget(ui->input_fm);
+    grid->removeWidget(ui->enabled_barometer);
+    grid->removeWidget(ui->label_vspd);
+    grid->removeWidget(ui->input_vspd);
+    grid->removeWidget(ui->label_vspd_unit);
+    grid->removeWidget(ui->label_alt);
+    grid->removeWidget(ui->input_alt);
+    grid->removeWidget(ui->label_alt_unit);
+
+    grid->addWidget(ui->enabled_flightcontroller, flightRow, 0, 1, 2, Qt::AlignLeft | Qt::AlignVCenter);
+    grid->addWidget(ui->label_fm, fmRow, 0);
+    grid->addWidget(ui->input_fm, fmRow, 1);
+    grid->addWidget(ui->enabled_barometer, barometerRow, 0, 1, 2, Qt::AlignLeft | Qt::AlignVCenter);
+    grid->addWidget(ui->label_vspd, vspdRow, 0);
+    grid->addWidget(ui->input_vspd, vspdRow, 1);
+    grid->addWidget(ui->label_vspd_unit, vspdRow, 2);
+    grid->addWidget(ui->label_alt, altRow, 0);
+    grid->addWidget(ui->input_alt, altRow, 1);
+    grid->addWidget(ui->label_alt_unit, altRow, 2);
+  };
+  connect(ui->enabled_attitude, &QCheckBox::toggled, this, relayoutLowerGroups);
+  relayoutLowerGroups(ui->enabled_attitude->isChecked());
 
   // Create this once
   supportedLogItems.clear();
@@ -102,7 +576,7 @@ void TelemetryProviderCrossfire::loadItemFromLog(QString item, QString value)
   if (item == "RQly") ui->input_rqly->setValue(value.toInt());
   if (item == "RSNR") ui->input_rsnr->setValue(value.toInt());
   if (item == "TRSS") ui->input_trss->setValue(value.toInt());
-  if (item == "TPWR") ui->input_tpwr->setCurrentText(value + "mW");
+  if (item == "TPWR") setTpwrFromAnyText(ui->input_tpwr, value);
   if (item == "RFMD") ui->input_rfmd->setValue(value.toInt());
   if (item == "ANT") ui->input_ant->setValue(value.toInt());
   if (item == "TQly") ui->input_tqly->setValue(value.toInt());
@@ -504,7 +978,7 @@ void TelemetryProviderCrossfire::on_button_loadTelemetryValues_clicked()
   inputText = in.readLine(); inputInt = inputText.toInt(); ui->input_rqly->setValue(inputInt);
   inputText = in.readLine(); inputInt = inputText.toInt(); ui->input_rsnr->setValue(inputInt);
   inputText = in.readLine(); inputInt = inputText.toInt(); ui->input_trss->setValue(inputInt);
-  inputText = in.readLine(); inputInt = inputText.toInt(); ui->input_tpwr->setCurrentText(inputText);
+  inputText = in.readLine(); inputInt = inputText.toInt(); setTpwrFromAnyText(ui->input_tpwr, inputText);
   inputText = in.readLine(); inputInt = inputText.toInt(); ui->input_rfmd->setValue(inputInt);
   inputText = in.readLine(); inputInt = inputText.toInt(); ui->input_ant->setValue(inputInt);
   inputText = in.readLine(); inputInt = inputText.toInt(); ui->input_tqly->setValue(inputInt);

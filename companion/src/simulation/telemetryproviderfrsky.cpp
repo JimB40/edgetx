@@ -21,6 +21,14 @@
 
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QAbstractSpinBox>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QGridLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QSizePolicy>
+#include <QToolButton>
 
 #include "appdata.h"
 #include "telemetryproviderfrsky.h"
@@ -30,6 +38,140 @@
 
 template<class t> t LIMIT(t mi, t x, t ma) { return std::min(std::max(mi, x), ma); }
 
+namespace {
+void installLargeStepButtons(QAbstractSpinBox * spin)
+{
+  if (spin->inherits("QDateTimeEdit"))
+    return;
+
+  const int spinFrame = 1;
+  const int buttonGap = 3;
+  const int buttonSize = qMax(14, spin->height() - 8);
+  const int buttonAreaWidth = (buttonSize * 2) + buttonGap;
+
+  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+  spin->setStyleSheet(
+    QString("QAbstractSpinBox { padding-left: 7px; padding-right: %1px; }"
+            "QAbstractSpinBox QLineEdit { padding-left: 7px; }")
+      .arg(buttonAreaWidth + spinFrame + 2));
+
+  auto * downButton = new QToolButton(spin);
+  downButton->setObjectName("stepDownButton");
+  downButton->setText(QStringLiteral("▼"));
+  downButton->setAutoRepeat(true);
+  downButton->setAutoRepeatDelay(250);
+  downButton->setAutoRepeatInterval(60);
+  downButton->setFocusPolicy(Qt::NoFocus);
+
+  auto * upButton = new QToolButton(spin);
+  upButton->setObjectName("stepUpButton");
+  upButton->setText(QStringLiteral("▲"));
+  upButton->setAutoRepeat(true);
+  upButton->setAutoRepeatDelay(250);
+  upButton->setAutoRepeatInterval(60);
+  upButton->setFocusPolicy(Qt::NoFocus);
+
+  const QString buttonStyle =
+    "QToolButton { border: 0; border-radius: 0; margin: 0px; padding: 0px; background: #e4e4e4; color: #111111; font-size: 13px; }"
+    "QToolButton#stepDownButton { border: 1px solid #b6b6b6; }"
+    "QToolButton#stepUpButton { border: 1px solid #b6b6b6; }"
+    "QToolButton:pressed { background: #d2d2d2; color: #000000; }";
+  downButton->setStyleSheet(buttonStyle);
+  upButton->setStyleSheet(buttonStyle);
+
+  QObject::connect(downButton, &QToolButton::clicked, spin, &QAbstractSpinBox::stepDown);
+  QObject::connect(upButton, &QToolButton::clicked, spin, &QAbstractSpinBox::stepUp);
+
+  const int h = spin->height();
+  const int w = spin->width();
+  const int x = w - buttonAreaWidth - spinFrame;
+  const int y = (h - buttonSize) / 2;
+  downButton->setGeometry(x, y, buttonSize, buttonSize);
+  upButton->setGeometry(x + buttonSize + buttonGap, y, buttonSize, buttonSize);
+}
+
+void tuneTelemetryInputWidgets(QWidget * root)
+{
+  const int fieldWidth = 120;
+
+  auto * grid = qobject_cast<QGridLayout *>(root->layout());
+  if (grid) {
+    grid->setHorizontalSpacing(10);
+    grid->setColumnMinimumWidth(1, fieldWidth);
+    grid->setColumnStretch(1, 0);
+    grid->setColumnStretch(2, 0);
+  }
+
+  const auto spinBoxes = root->findChildren<QAbstractSpinBox *>();
+  for (QAbstractSpinBox * spin : spinBoxes) {
+    spin->setFixedWidth(fieldWidth);
+    spin->setFixedHeight(24);
+    spin->setSizePolicy(QSizePolicy::Fixed, spin->sizePolicy().verticalPolicy());
+    spin->setAccelerated(true);
+    installLargeStepButtons(spin);
+    if (grid)
+      grid->setAlignment(spin, Qt::AlignLeft | Qt::AlignVCenter);
+  }
+
+  const auto lineEdits = root->findChildren<QLineEdit *>();
+  for (QLineEdit * edit : lineEdits) {
+    if (qobject_cast<QAbstractSpinBox *>(edit->parentWidget()))
+      continue;
+    edit->setFixedWidth(fieldWidth);
+    edit->setFixedHeight(24);
+    edit->setSizePolicy(QSizePolicy::Fixed, edit->sizePolicy().verticalPolicy());
+    if (grid)
+      grid->setAlignment(edit, Qt::AlignLeft | Qt::AlignVCenter);
+  }
+
+  const auto comboBoxes = root->findChildren<QComboBox *>();
+  for (QComboBox * combo : comboBoxes) {
+    combo->setFixedWidth(fieldWidth);
+    combo->setFixedHeight(24);
+    combo->setSizePolicy(QSizePolicy::Fixed, combo->sizePolicy().verticalPolicy());
+    if (grid)
+      grid->setAlignment(combo, Qt::AlignLeft | Qt::AlignVCenter);
+  }
+
+  const auto labels = root->findChildren<QLabel *>();
+  for (QLabel * label : labels) {
+    const QString txt = label->text().trimmed();
+    const bool looksLikeUnit = label->objectName().contains("_unit") ||
+                               txt == "dB" || txt == "%" || txt == "mw" || txt == "mW" ||
+                               txt == "dBm" || txt == "V" || txt == "A" || txt == "mAh" ||
+                               txt == "km/h" || txt == "kmh" || txt == "Degrees" || txt == "Radians" ||
+                               txt == "m/s" || txt == "m" || txt == "kts" || txt == "rpm" ||
+                               txt == "ml" || txt == "g" || txt == "°C";
+    if (!looksLikeUnit)
+      continue;
+    label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    label->setStyleSheet("padding-left: 0px; margin-left: 0px;");
+    if (grid)
+      grid->setAlignment(label, Qt::AlignLeft | Qt::AlignVCenter);
+  }
+
+  const auto checkBoxes = root->findChildren<QCheckBox *>();
+  for (QCheckBox * cb : checkBoxes) {
+    cb->setStyleSheet(
+      "QCheckBox { font-weight: 600; spacing: 5px; margin-top: 3px; margin-bottom: 3px; }"
+    );
+    if (!grid)
+      continue;
+    int row = 0, col = 0, rowSpan = 1, colSpan = 1;
+    const int idx = grid->indexOf(cb);
+    if (idx < 0)
+      continue;
+    grid->getItemPosition(idx, &row, &col, &rowSpan, &colSpan);
+    if (col != 0) {
+      grid->removeWidget(cb);
+      grid->addWidget(cb, row, 0, rowSpan, 2, Qt::AlignLeft | Qt::AlignVCenter);
+    } else {
+      grid->setAlignment(cb, Qt::AlignLeft | Qt::AlignVCenter);
+    }
+  }
+}
+}
+
 TelemetryProviderFrSky::TelemetryProviderFrSky(QWidget * parent):
   QWidget(parent),
   ui(new Ui::TelemetryProviderFrSky)
@@ -38,6 +180,7 @@ TelemetryProviderFrSky::TelemetryProviderFrSky(QWidget * parent):
   sendDate = true;
 
   ui->setupUi(this);
+  tuneTelemetryInputWidgets(this);
 
   ui->A1->setSpecialValueText(" ");
   ui->A2->setSpecialValueText(" ");
@@ -885,4 +1028,3 @@ void TelemetryProviderFrSky::on_GPSpushButton_clicked()
     gps.stop();
   }
 }
-
