@@ -108,6 +108,17 @@ static int luaDestroyLvglWidget(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.set(obj, params)
+
+Update an existing LVGL object from a parameter table.
+
+@param obj (table) LVGL object previously created by the `lvgl` library
+
+@param params (table) updated properties for the object
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglSet(lua_State *L)
 {
   auto p = LvglWidgetObjectBase::checkLvgl(L, 1, true);
@@ -117,6 +128,15 @@ static int luaLvglSet(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.clear([obj])
+
+Clear all LVGL content created by the current script, or clear the children of a specific object.
+
+@param obj (optional table) LVGL object to clear instead of clearing the whole script UI
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglClear(lua_State *L)
 {
   if (luaScriptManager) {
@@ -133,6 +153,15 @@ static int luaLvglClear(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.show(obj)
+
+Show an LVGL object that was previously hidden.
+
+@param obj (table) LVGL object previously created by the `lvgl` library
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglShow(lua_State *L)
 {
   auto p = LvglWidgetObjectBase::checkLvgl(L, 1, true);
@@ -142,6 +171,15 @@ static int luaLvglShow(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.hide(obj)
+
+Hide an LVGL object without destroying it.
+
+@param obj (table) LVGL object previously created by the `lvgl` library
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglHide(lua_State *L)
 {
   auto p = LvglWidgetObjectBase::checkLvgl(L, 1, true);
@@ -151,6 +189,15 @@ static int luaLvglHide(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.enable(obj)
+
+Enable interaction for an LVGL control object.
+
+@param obj (table) LVGL object previously created by the `lvgl` library
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglEnable(lua_State *L)
 {
   auto p = LvglWidgetObjectBase::checkLvgl(L, 1, true);
@@ -160,6 +207,15 @@ static int luaLvglEnable(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.disable(obj)
+
+Disable interaction for an LVGL control object.
+
+@param obj (table) LVGL object previously created by the `lvgl` library
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglDisable(lua_State *L)
 {
   auto p = LvglWidgetObjectBase::checkLvgl(L, 1, true);
@@ -169,6 +225,15 @@ static int luaLvglDisable(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.close(obj)
+
+Close an LVGL object that represents a closable container or dialog.
+
+@param obj (table) LVGL object previously created by the `lvgl` library
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglClose(lua_State *L)
 {
   auto p = LvglWidgetObjectBase::checkLvgl(L, 1, true);
@@ -357,6 +422,29 @@ static int luaLvglObjEx(lua_State *L, std::function<LvglWidgetObjectBase*()> cre
   return 1;
 }
 
+/*luadoc
+@function lvgl.build(definition)
+
+Build multiple LVGL objects from a Lua table definition and return the created object references.
+
+@param definition (table) array-like table of object definition tables
+
+@retval table array of created LVGL objects
+
+@notice Object definitions commonly use:
+ * `type` (string or number) object type
+ * `name` (string) optional name used in the returned reference table
+ * `children` (table) nested child object definitions for containers
+
+@notice Most objects also accept common keys such as:
+ * `x`, `y`, `w`, `h`
+ * `color`, `opacity`
+ * `visible` returning a boolean
+ * `pos` returning x and y
+ * `size` returning width and height
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglBuild(lua_State *L)
 {
   if (luaScriptManager) {
@@ -382,6 +470,15 @@ static int luaLvglBuild(lua_State *L)
   return 1;
 }
 
+/*luadoc
+@function lvgl.isAppMode()
+
+Return whether the current script is running in app mode.
+
+@retval boolean true when the current script runs in app mode
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglIsAppMode(lua_State *L)
 {
   if (luaScriptManager) {
@@ -392,6 +489,15 @@ static int luaLvglIsAppMode(lua_State *L)
   return 1;
 }
 
+/*luadoc
+@function lvgl.isFullScreen()
+
+Return whether the current script is running in fullscreen mode.
+
+@retval boolean true when the current script runs in fullscreen mode
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglIsFullscreen(lua_State *L)
 {
   if (luaScriptManager) {
@@ -402,6 +508,13 @@ static int luaLvglIsFullscreen(lua_State *L)
   return 1;
 }
 
+/*luadoc
+@function lvgl.exitFullScreen()
+
+Exit LVGL fullscreen mode for the current script.
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglExitFullscreen(lua_State *L)
 {
   if (luaScriptManager)
@@ -409,6 +522,17 @@ static int luaLvglExitFullscreen(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.getContext()
+
+Return the Lua context table associated with the current LVGL script, if any.
+
+@retval table current LVGL context table
+
+@retval nil no LVGL context is available
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglGetContext(lua_State *L)
 {
   if (luaScriptManager && luaScriptManager->getContext() != LUA_REFNIL) {
@@ -420,6 +544,17 @@ static int luaLvglGetContext(lua_State *L)
   return 1;
 }
 
+/*luadoc
+@function lvgl.getScrollPos(obj)
+
+Return the current scroll position of an LVGL object.
+
+@param obj (table) LVGL object previously created by the `lvgl` library
+
+@retval x,y (numbers) horizontal and vertical scroll offsets
+
+@status current Introduced in 3.0.0
+*/
 static int luaLvglGetScrollPos(lua_State *L)
 {
   auto p = LvglWidgetObjectBase::checkLvgl(L, 1, true);
@@ -431,6 +566,597 @@ static int luaLvglGetScrollPos(lua_State *L)
   return 0;
 }
 
+/*luadoc
+@function lvgl.label(params)
+
+Create an LVGL label object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Common keys:
+ * `x`, `y`, `w`, `h`
+ * `color`, `opacity`
+ * `visible`, `pos`, `size`
+
+@notice Label keys:
+ * `text` (string or function)
+ * `font` (number or function)
+ * `align` (number or function)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.rectangle(params)
+
+Create an LVGL rectangle object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Common keys:
+ * `x`, `y`, `w`, `h`
+ * `color`, `opacity`, `visible`
+
+@notice Rectangle keys:
+ * `rounded` (number)
+ * `thickness` (number)
+ * `filled` (boolean or function)
+ * `flexFlow`, `flexPad`, `borderPad`
+ * `align`, `scrollBar`, `scrollDir`, `scrollTo`, `scrolled`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.hline(params)
+
+Create an LVGL horizontal line object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Common keys:
+ * `x`, `y`, `w`, `h`
+ * `color`, `opacity`, `visible`
+
+@notice Horizontal line keys:
+ * `rounded` (boolean)
+ * `dashGap` (number)
+ * `dashWidth` (number)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.vline(params)
+
+Create an LVGL vertical line object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Common keys:
+ * `x`, `y`, `w`, `h`
+ * `color`, `opacity`, `visible`
+
+@notice Vertical line keys:
+ * `rounded` (boolean)
+ * `dashGap` (number)
+ * `dashWidth` (number)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.line(params)
+
+Create an LVGL line object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Line keys:
+ * `color`, `opacity`, `visible`
+ * `rounded` (boolean)
+ * `thickness` (number)
+ * `pts` (table of `{x, y}` points or function returning that table)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.triangle(params)
+
+Create an LVGL triangle object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Triangle keys:
+ * `color`, `opacity`, `visible`
+ * `pts` (table with three `{x, y}` points or function returning that table)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.circle(params)
+
+Create an LVGL circle object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Common bordered-object keys:
+ * `color`, `opacity`, `visible`
+ * `thickness` (number)
+ * `filled` (boolean or function)
+ * `radius` (number or function)
+ * `flexFlow`, `flexPad`, `borderPad`
+
+@notice Circle position uses the center point with `radius`.
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.arc(params)
+
+Create an LVGL arc object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Arc keys:
+ * `radius` (number or function)
+ * `rounded` (boolean)
+ * `thickness` (number)
+ * `startAngle`, `endAngle`
+ * `bgColor`, `bgOpacity`
+ * `bgStartAngle`, `bgEndAngle`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.image(params)
+
+Create an LVGL image object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Image keys:
+ * `x`, `y`, `w`, `h`
+ * `file` (string or function)
+ * `fill` (boolean)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.qrcode(params)
+
+Create an LVGL QR code object.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice QR code keys:
+ * `x`, `y`, `w`
+ * `data` (string)
+ * `color` (number)
+ * `bgColor` (number)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.button(params)
+
+Create an LVGL text button control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Button keys:
+ * `x`, `y`, `w`, `h`
+ * `text`, `font`
+ * `color`, `textColor`
+ * `cornerRadius` (number)
+ * `press` (function)
+ * `checked` (boolean)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.momentaryButton(params)
+
+Create an LVGL momentary button control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Momentary button keys:
+ * `x`, `y`, `w`, `h`
+ * `text`, `font`
+ * `color`, `textColor`
+ * `cornerRadius` (number)
+ * `press` (function)
+ * `release` (function)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.toggle(params)
+
+Create an LVGL toggle control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Toggle keys:
+ * `x`, `y`
+ * `get` (function)
+ * `set` (function)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.textEdit(params)
+
+Create an LVGL text edit control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Text edit keys:
+ * `x`, `y`, `w`, `h`
+ * `value` (string)
+ * `length` (number)
+ * `set` (function)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.numberEdit(params)
+
+Create an LVGL number edit control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Number edit keys:
+ * `x`, `y`, `w`, `h`
+ * `min`, `max`
+ * `get`, `set`
+ * `display` (function)
+ * `edited` (function)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.choice(params)
+
+Create an LVGL choice control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Choice keys:
+ * `x`, `y`, `w`, `h`
+ * `title` (string or function)
+ * `values` (table of strings)
+ * `get`, `set`
+ * `filter` (function receiving a 1-based item index)
+ * `popupWidth` (number)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.slider(params)
+
+Create an LVGL slider control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Slider keys:
+ * `x`, `y`, `w`
+ * `color`
+ * `min`, `max`
+ * `get`, `set`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.verticalSlider(params)
+
+Create an LVGL vertical slider control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Vertical slider keys:
+ * `x`, `y`, `h`
+ * `color`
+ * `min`, `max`
+ * `get`, `set`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.font(params)
+
+Create an LVGL font picker control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Font picker keys:
+ * `x`, `y`, `w`, `h`
+ * `get`, `set`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.align(params)
+
+Create an LVGL alignment picker control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Alignment picker keys:
+ * `x`, `y`, `w`, `h`
+ * `get`, `set`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.color(params)
+
+Create an LVGL color picker control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Color picker keys:
+ * `x`, `y`, `w`, `h`
+ * `get`, `set`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.timer(params)
+
+Create an LVGL timer picker control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Timer picker keys:
+ * `x`, `y`, `w`, `h`
+ * `get`, `set`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.switch(params)
+
+Create an LVGL switch picker control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Switch picker keys:
+ * `x`, `y`, `w`, `h`
+ * `get`, `set`
+ * `filter` (number mask such as `lvgl.SW_*`)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.source(params)
+
+Create an LVGL source picker control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Source picker keys:
+ * `x`, `y`, `w`, `h`
+ * `get`, `set`
+ * `filter` (number mask such as `lvgl.SRC_*`)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.file(params)
+
+Create an LVGL file picker control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice File picker keys:
+ * `x`, `y`, `w`, `h`
+ * `title` (string or function)
+ * `folder` (string)
+ * `extension` (string)
+ * `maxLen` (number)
+ * `hideExtension` (boolean)
+ * `get`, `set`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.box(params)
+
+Create an LVGL box container.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Box keys:
+ * `x`, `y`, `w`, `h`
+ * `color`, `opacity`, `visible`
+ * `align`
+ * `flexFlow`, `flexPad`, `borderPad`
+ * `scrollBar`, `scrollDir`, `scrollTo`, `scrolled`
+ * `children`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.setting(params)
+
+Create an LVGL setting control.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Setting keys:
+ * `x`, `y`, `w`, `h`
+ * `title` (string or function)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.page(params)
+
+Create an LVGL page container.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Page keys:
+ * `title`, `subtitle`, `icon`
+ * `back`, `menu`
+ * `backButton` (boolean)
+ * `prevButton`, `nextButton` tables with `press` and `active`
+ * `align`
+ * `scrollBar`, `scrollDir`, `scrollTo`, `scrolled`
+ * `children`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.dialog(params)
+
+Create an LVGL dialog container.
+
+@param params (table) object definition table
+
+@retval table created LVGL object
+
+@notice Available only in standalone scripts and fullscreen widgets.
+
+@notice Dialog keys:
+ * `title` (string or function)
+ * `w`, `h`
+ * `close` (function)
+ * `children`
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.confirm(params)
+
+Show a confirmation dialog using the LVGL UI layer.
+
+@param params (table) dialog definition table
+
+@notice Confirm dialog keys:
+ * `title` (string or function)
+ * `message` (string)
+ * `confirm` (function)
+ * `cancel` (function)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.message(params)
+
+Show a message dialog using the LVGL UI layer.
+
+@param params (table) dialog definition table
+
+@notice Message dialog keys:
+ * `title` (string or function)
+ * `message` (string)
+ * `details` (string)
+
+@status current Introduced in 3.0.0
+*/
+/*luadoc
+@function lvgl.menu(params)
+
+Show an LVGL menu popup.
+
+@param params (table) dialog definition table
+
+@notice Menu keys:
+ * `title` (string or function)
+ * `values` (table of strings)
+ * `get`, `set`
+
+@status current Introduced in 3.0.0
+*/
 extern "C" {
 // lvgl functions
 LROT_BEGIN(lvgllib, NULL, 0)
