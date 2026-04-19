@@ -21,12 +21,14 @@
 
 #include "view_main.h"
 
-#include "model_select.h"
 #include "edgetx.h"
-#include "topbar.h"
+#include "mainwindow.h"
+#include "model_select.h"
 #include "quick_menu.h"
-#include "view_channels.h"
+#include "radio_tools.h"
 #include "screen_setup.h"
+#include "topbar.h"
+#include "view_channels.h"
 #include "widget.h"
 
 static void tile_view_deleted_cb(lv_event_t* e)
@@ -76,10 +78,17 @@ static void tile_view_scroll_end(lv_event_t* e)
 
 ViewMain* ViewMain::_instance = nullptr;
 
+ViewMain* ViewMain::instance()
+{
+  if (!_instance)
+    _instance = new ViewMain();
+  return _instance;
+}
+
 ViewMain::ViewMain() :
     NavWindow(MainWindow::instance(), MainWindow::instance()->getRect())
 {
-  Layer::push(this);
+  pushLayer();
 
   tile_view = lv_tileview_create(lvobj);
   lv_obj_set_pos(tile_view, rect.x, rect.y);
@@ -100,13 +109,6 @@ ViewMain::ViewMain() :
 
 ViewMain::~ViewMain() { _instance = nullptr; }
 
-void ViewMain::deleteLater(bool detach, bool trash)
-{
-  NavWindow::deleteLater(detach, trash);
-  Layer::pop(this);
-  QuickMenu::shutdownQuickMenu();
-}
-
 void ViewMain::addMainView(WidgetsContainer* view, uint32_t viewId)
 {
   TRACE("addMainView(0x%p, %d)", view, viewId);
@@ -121,7 +123,7 @@ void ViewMain::addMainView(WidgetsContainer* view, uint32_t viewId)
   lv_obj_add_event_cb(tile, tile_view_deleted_cb, LV_EVENT_CHILD_DELETED,
                       user_data);
 
-  view->show();  
+  view->show();
 }
 
 void ViewMain::setTopbarVisible(float visible) { topbar->setVisible(visible); }
@@ -130,18 +132,6 @@ void ViewMain::setEdgeTxButtonVisible(float visible) { topbar->setEdgeTxButtonVi
 unsigned ViewMain::getMainViewsCount() const
 {
   return lv_obj_get_child_cnt(tile_view);
-}
-
-rect_t ViewMain::getMainZone(rect_t zone, bool hasTopbar) const
-{
-  if (isVisible) {
-    auto visibleHeight = topbar->getVisibleHeight(hasTopbar ? 1.0 : 0.0);
-    zone.y += visibleHeight;
-    zone.h -= visibleHeight;
-    return zone;
-  } else {
-    return {0, 0, LCD_W, LCD_H};
-  }
 }
 
 unsigned ViewMain::getCurrentMainView() const
@@ -178,16 +168,6 @@ void ViewMain::previousMainView()
 }
 
 TopBar* ViewMain::getTopbar() { return topbar; }
-
-void ViewMain::enableTopbar()
-{
-  if (topbar) topbar->show();
-}
-
-void ViewMain::disableTopbar()
-{
-  if (topbar) topbar->hide();
-}
 
 void ViewMain::updateTopbarVisibility()
 {
@@ -248,11 +228,11 @@ void ViewMain::updateTopbarVisibility()
 void ViewMain::doKeyShortcut(event_t event)
 {
   QMPage pg = g_eeGeneral.getKeyShortcut(event);
-  if (pg == QM_OPEN_QUICK_MENU) {
-    if (!viewMainMenu) openMenu();
+  if (pg == QM_APP) {
+    runLuaTool(g_eeGeneral.getKeyToolName(event));
+  } else if (pg == QM_OPEN_QUICK_MENU) {
+    QuickMenu::openQuickMenu();
   } else {
-    if (viewMainMenu)
-      viewMainMenu->closeMenu();
     QuickMenu::openPage(pg);
   }
 }
@@ -265,20 +245,18 @@ void ViewMain::onLongPressTELE() { doKeyShortcut(EVT_KEY_LONG(KEY_TELE)); }
 void ViewMain::onPressPGUP()
 {
   if (!widget_select) {
-    if (viewMainMenu) viewMainMenu->closeMenu();
     previousMainView();
   }
 }
 void ViewMain::onPressPGDN()
 {
   if (!widget_select) {
-    if (viewMainMenu) viewMainMenu->closeMenu();
     nextMainView();
   }
 }
 #endif
 
-void ViewMain::onClicked() { openMenu(); }
+void ViewMain::onClicked() { QuickMenu::openQuickMenu(); }
 
 void ViewMain::onCancel()
 {
@@ -333,11 +311,6 @@ bool ViewMain::enableWidgetSelect(bool enable)
   }
 
   return true;
-}
-
-void ViewMain::openMenu()
-{
-  viewMainMenu = QuickMenu::openQuickMenu([=]() { viewMainMenu = nullptr; });
 }
 
 void ViewMain::ws_timer(lv_timer_t* t)
@@ -410,11 +383,18 @@ void ViewMain::hideTopBarEdgeTxButton()
   topbar->setEdgeTxButtonVisible(0.0);
 }
 
-void ViewMain::runBackground()
+void ViewMain::_refreshWidgets()
 {
-  topbar->runBackground();
-  for (int i = 0; i < MAX_CUSTOM_SCREENS; i += 1) {
-    if (customScreens[i])
-      customScreens[i]->runBackground();
+  if (!_deleted) {
+    topbar->refreshWidgets(isVisible && hasTopbar());
+    for (int i = 0; i < MAX_CUSTOM_SCREENS; i += 1) {
+      if (customScreens[i])
+        customScreens[i]->refreshWidgets(isVisible);
+    }
   }
+}
+
+void ViewMain::refreshWidgets()
+{
+  if (_instance) _instance->_refreshWidgets();
 }

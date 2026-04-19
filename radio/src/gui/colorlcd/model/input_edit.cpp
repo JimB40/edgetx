@@ -23,15 +23,77 @@
 
 #include "curve_param.h"
 #include "curveedit.h"
-#include "gvar_numberedit.h"
-#include "source_numberedit.h"
-#include "input_source.h"
 #include "edgetx.h"
 #include "etx_lv_theme.h"
-#include "switchchoice.h"
 #include "fm_matrix.h"
+#include "getset_helpers.h"
+#include "gvar_numberedit.h"
+#include "input_source.h"
+#include "source_numberedit.h"
+#include "switchchoice.h"
+#include "textedit.h"
 
 #define SET_DIRTY() storageDirty(EE_MODEL)
+
+#if LANDSCAPE
+static const lv_coord_t col_dsc[] = {LV_GRID_FR(3), LV_GRID_FR(8),
+                                     LV_GRID_TEMPLATE_LAST};
+#else
+static const lv_coord_t col_dsc[] = {LV_GRID_FR(1), LV_GRID_FR(2),
+                                     LV_GRID_TEMPLATE_LAST};
+#endif
+static const lv_coord_t row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+
+class InputEditAdvanced : public Page
+{
+ public:
+  InputEditAdvanced(uint8_t input_n, uint8_t index) : Page(ICON_MODEL_INPUTS)
+  {
+    std::string title2(getSourceString(MIXSRC_FIRST_INPUT + input_n));
+    header->setTitle(STR_MENUINPUTS);
+    header->setTitle2(title2);
+
+    FlexGridLayout grid(col_dsc, row_dsc, PAD_TINY);
+    body->setFlexLayout();
+
+    ExpoData* input = expoAddress(index);
+
+    // Side
+    auto line = body->newLine(grid);
+    new StaticText(line, rect_t{}, STR_SIDE);
+    new Choice(
+        line, rect_t{}, STR_VCURVEFUNC, 1, 3,
+        [=]() -> int16_t { return 4 - input->mode; },
+        [=](int16_t newValue) {
+          input->mode = 4 - newValue;
+          Messaging::send(Messaging::CURVE_UPDATE);
+          SET_DIRTY();
+        });
+
+    // Trim
+    line = body->newLine(grid);
+    new StaticText(line, rect_t{}, STR_TRIM);
+    const auto trimLast = TRIM_OFF + keysGetMaxTrims() - 1;
+    auto c = new Choice(line, rect_t{}, -TRIM_OFF, trimLast,
+                        GET_VALUE(-input->trimSource),
+                        SET_VALUE(input->trimSource, -newValue));
+
+    uint16_t srcRaw = input->srcRaw;
+    c->setAvailableHandler([=](int value) {
+      return value != TRIM_ON || srcRaw <= MIXSRC_LAST_STICK;
+    });
+    c->setTextHandler([=](int value) -> std::string {
+      return getTrimSourceLabel(srcRaw, -value);
+    });
+
+    // Flight modes
+    if (modelFMEnabled()) {
+      line = body->newLine(grid);
+      new StaticText(line, rect_t{}, STR_FLMODE);
+      new FMMatrix<ExpoData>(line, rect_t{}, input);
+    }
+  }
+};
 
 InputEditWindow::InputEditWindow(int8_t input, uint8_t index) :
     Page(ICON_MODEL_INPUTS), input(input), index(index)
@@ -85,10 +147,6 @@ void InputEditWindow::setTitle()
 {
   headerSwitchName->setText(getSourceString(MIXSRC_FIRST_INPUT + input));
 }
-
-static const lv_coord_t col_dsc[] = {LV_GRID_FR(1), LV_GRID_FR(2),
-                                     LV_GRID_TEMPLATE_LAST};
-static const lv_coord_t row_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
 
 void InputEditWindow::buildBody(Window* form)
 {
@@ -160,10 +218,7 @@ void InputEditWindow::buildBody(Window* form)
           input->curve.value = newValue;
           updatePreview = true;
           SET_DIRTY();
-        }, MIXSRC_FIRST, input->srcRaw,
-        [=]() {
-          updatePreview = true;
-        });
+        }, MIXSRC_FIRST, input->srcRaw);
   lv_obj_set_style_grid_cell_x_align(param->getLvObj(), LV_GRID_ALIGN_STRETCH,
                                      0);
 
@@ -171,70 +226,16 @@ void InputEditWindow::buildBody(Window* form)
   line->padAll(PAD_LARGE);
   auto btn =
       new TextButton(line, rect_t{}, LV_SYMBOL_SETTINGS, [=]() -> uint8_t {
-        showAdvanced();
+        new InputEditAdvanced(this->input, index);
         return 0;
       });
   lv_obj_set_width(btn->getLvObj(), lv_pct(100));
 }
 
-void InputEditWindow::showAdvanced()
-{
-  if (!advWindow) {
-    advWindow = new Window(this,
-                      {0, EdgeTxStyles::MENU_HEADER_HEIGHT, LCD_W, LCD_H - EdgeTxStyles::MENU_HEADER_HEIGHT});
-    advWindow->setWindowFlag(NO_FOCUS);
-    advWindow->padAll(PAD_SMALL);
-
-    etx_solid_bg(advWindow->getLvObj());
-
-    FlexGridLayout grid(col_dsc, row_dsc, PAD_TINY);
-    advWindow->setFlexLayout();
-    advWindow->setHeight(LCD_H - EdgeTxStyles::MENU_HEADER_HEIGHT);
-
-    ExpoData* input = expoAddress(index);
-
-    // Side
-    auto line = advWindow->newLine(grid);
-    new StaticText(line, rect_t{}, STR_SIDE);
-    new Choice(
-        line, rect_t{}, STR_VCURVEFUNC, 1, 3,
-        [=]() -> int16_t { return 4 - input->mode; },
-        [=](int16_t newValue) {
-          input->mode = 4 - newValue;
-          updatePreview = true;
-          SET_DIRTY();
-        });
-
-    // Trim
-    line = advWindow->newLine(grid);
-    new StaticText(line, rect_t{}, STR_TRIM);
-    const auto trimLast = TRIM_OFF + keysGetMaxTrims() - 1;
-    auto c = new Choice(line, rect_t{}, -TRIM_OFF, trimLast,
-                        GET_VALUE(-input->trimSource),
-                        SET_VALUE(input->trimSource, -newValue));
-
-    uint16_t srcRaw = input->srcRaw;
-    c->setAvailableHandler([=](int value) {
-      return value != TRIM_ON || srcRaw <= MIXSRC_LAST_STICK;
-    });
-    c->setTextHandler([=](int value) -> std::string {
-      return getTrimSourceLabel(srcRaw, -value);
-    });
-
-    // Flight modes
-    if (modelFMEnabled()) {
-      line = advWindow->newLine(grid);
-      new StaticText(line, rect_t{}, STR_FLMODE);
-      new FMMatrix<ExpoData>(line, rect_t{}, input);
-    }
-  }
-
-  advWindow->show();
-  advEdit = true;
-}
-
 void InputEditWindow::checkEvents()
 {
+  if (_deleted) return;
+
   ExpoData* input = expoAddress(index);
 
   getvalue_t val;
@@ -290,18 +291,8 @@ void InputEditWindow::checkEvents()
 
   if (updatePreview) {
     updatePreview = false;
-    if (preview) preview->update();
+    Messaging::send(Messaging::CURVE_UPDATE);
   }
 
   Page::checkEvents();
-}
-
-void InputEditWindow::onCancel()
-{
-  if (advEdit) {
-    advEdit = false;
-    advWindow->hide();
-  } else {
-    Page::onCancel();
-  }
 }
