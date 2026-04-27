@@ -436,6 +436,9 @@ Timestamp</string>
               <number>0</number>
              </property>
              <layout class="QHBoxLayout" name="horizontalLayout_3">
+              <property name="spacing">
+               <number>8</number>
+              </property>
               <property name="leftMargin">
                <number>0</number>
               </property>
@@ -448,6 +451,12 @@ Timestamp</string>
               <property name="bottomMargin">
                <number>0</number>
               </property>
+              <property name="sizeConstraint">
+               <enum>QLayout::SizeConstraint::SetMinimumSize</enum>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+              </property>
               <item>
                <widget class="QLabel" name="internalTelemetryLabel">
                 <property name="lineWidth">
@@ -457,7 +466,7 @@ Timestamp</string>
                  <string>Internal Module</string>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+                 <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
                 </property>
                </widget>
               </item>
@@ -486,6 +495,61 @@ Timestamp</string>
                </widget>
               </item>
              </layout>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="internalValueButtonsLayout">
+             <property name="spacing">
+              <number>8</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QPushButton" name="internalLoadValuesButton">
+               <property name="text">
+                <string>Load Values</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="internalSaveValuesButton">
+               <property name="text">
+                <string>Save Values</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="Line" name="internalGroupDivider">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="internalGroupHeaderLabel">
+             <property name="font">
+              <font>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="text">
+              <string>RF Link</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
             </widget>
            </item>
            <item>

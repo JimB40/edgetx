@@ -28,6 +28,7 @@
 #include <QtCore/qmath.h>
 #include <QFileDialog>
 #include <QScrollArea>
+#include <QResizeEvent>
 
 #include "simulatorinterface.h"
 #include "telemetryprovider.h"
@@ -72,14 +73,18 @@ class TelemetrySimulator : public QWidget
     void onReplayRateChanged(int value);
     void onInternalTelemetrySelectorChanged(int selectedIndex);
     void onExternalTelemetrySelectorChanged(int selectedIndex);
+    void onInternalLoadValuesClicked();
+    void onInternalSaveValuesClicked();
     void onInternalTelemetryProviderDataChanged(const quint8 protocol, const QByteArray data);
     void onExternalTelemetryProviderDataChanged(const quint8 protocol, const QByteArray data);
     void generateTelemetryFrame();
+    void updateInternalProviderButtonsVisibility();
   TelemetryProvider * newTelemetryProviderFromDropdownChoice(int selectedIndex, QScrollArea * parent, bool isExternal);
     TelemetryProvider * getInternalTelemetryProvider();
     TelemetryProvider * getExternalTelemetryProvider();
 
   protected:
+    void resizeEvent(QResizeEvent *event) override;
 
     Ui::TelemetrySimulator * ui;
     QTimer timer;
